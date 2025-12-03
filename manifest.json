@@ -1,0 +1,10 @@
+{
+	"id": "attachment-renamer",
+	"name": "Attachment Renamer",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Rename pasted, new, and existing attachments in your vault. Inspired by Paste image rename by Reorx.",
+	"author": "bwpge",
+	"authorUrl": "https://github.com/bwpge",
+	"isDesktopOnly": false
+}
