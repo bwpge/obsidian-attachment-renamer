@@ -14,12 +14,13 @@
 	display: flex;
 	justify-content: center;
 	font-style: italic;
-	padding: 1.5em 0;
+	padding: 2em 0;
 }
 
 .attachment-renamer-preview img {
 	max-height: 300px;
 	max-width: 100%;
+	box-shadow: var(--shadow-s);
 }
 
 .attachment-renamer-info {
@@ -52,4 +53,11 @@
 
 .attachment-renamer-setting-wrap {
 	flex-wrap: wrap;
+}
+
+.attachment-renamer-help .modal {
+  width: 90vw;
+  max-width: 900px;
+  max-height: 900px;
+  padding: var(--size-4-8);
 }

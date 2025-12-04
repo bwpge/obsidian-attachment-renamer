@@ -1,5 +1,4 @@
-import { App, Editor, MarkdownView, TFile } from "obsidian"
-import { NaivePath } from "./NaivePath"
+import { App, Editor, MarkdownView } from "obsidian"
 
 const IMAGE_EXTENSIONS = new Set([
 	"jpg",
@@ -66,69 +65,6 @@ export function replaceCurrLineInEditor(editor: Editor, oldStr: string, newStr: 
 			},
 		],
 	})
-}
-
-export async function deleteAttachment(app: App, src: string, noUpdateEditor?: boolean) {
-	const f = app.vault.getAbstractFileByPath(src)
-
-	// basic sanity check that this is actually a file to avoid nuking the user's vault if
-	// something breaks in this plugin down the line
-	if (!(f instanceof TFile)) {
-		console.log("something broke, src is not a file", src)
-		return
-	}
-
-	app.vault.delete(f)
-
-	if (noUpdateEditor) {
-		return
-	}
-
-	const activeFile = app.workspace.getActiveFile()
-	const editor = getActiveEditor(app)
-	if (!activeFile || !editor) {
-		return
-	}
-	const linkText = app.fileManager.generateMarkdownLink(f, activeFile.path)
-	replaceCurrLineInEditor(editor, `!${linkText}`, "")
-}
-
-export async function renameAttachment(app: App, src: string, dst: string, noUpdateEditor?: boolean) {
-	const activeFile = app.workspace.getActiveFile()
-	const srcFile = app.vault.getAbstractFileByPath(src)
-	if (!(srcFile instanceof TFile)) {
-		console.log("something broke, src is not a file", src)
-		return
-	}
-	if (!activeFile) {
-		return
-	}
-
-	// need to capture this here because the rename changes srcFile
-	const oldLink = app.fileManager.generateMarkdownLink(srcFile, activeFile.path)
-
-	const p = NaivePath.parse(dst)
-	await app.vault.adapter.mkdir(p.parent)
-	await app.fileManager.renameFile(srcFile, dst)
-
-	if (noUpdateEditor) {
-		return
-	}
-
-	const editor = getActiveEditor(app)
-	if (!editor) {
-		return
-	}
-
-	const dstFile = app.vault.getAbstractFileByPath(dst)
-	if (!(dstFile instanceof TFile)) {
-		console.log("something broke, dst is not a file", dst)
-		return
-	}
-
-	const newLink = app.fileManager.generateMarkdownLink(dstFile, activeFile.path)
-	console.log(`updating text: "${oldLink}" => "${newLink}"`)
-	replaceCurrLineInEditor(editor, oldLink, newLink)
 }
 
 export function splitLast(value: string, separator: string): [string, string | undefined] {

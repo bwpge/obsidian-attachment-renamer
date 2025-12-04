@@ -61,17 +61,16 @@ export class NaivePath {
 	}
 
 	async updateIncrement(app: App, opts: RenderPathOpts) {
+		let base = opts.alwaysNumber ? 1 : 0
 		let listed
 		try {
 			listed = await app.vault.adapter.list(this.parent)
 		} catch {
-			console.warn(`could not list ${this.parent}`)
-			this.increment = 0
+			this.increment = base
 			return
 		}
 
 		let num = -1
-		let exists = opts.alwaysNumber ?? false
 		for (const item of listed.files) {
 			const p = NaivePath.parse(item)
 			if (!p.basename.startsWith(this.basename)) {
@@ -81,7 +80,7 @@ export class NaivePath {
 			// we compare basename to avoid issues where attachments only differ in extension, which
 			// otherwise makes increment numbers overlap
 			if (p.basename == this.basename) {
-				exists = true
+				base = 1
 				continue
 			}
 
@@ -101,11 +100,7 @@ export class NaivePath {
 			}
 		}
 
-		if (num > 0) {
-			this.increment = num
-		} else {
-			this.increment = exists ? 1 : 0
-		}
+		this.increment = Math.max(num, base)
 	}
 
 	renderBaseName(opts?: RenderPathOpts): string {

@@ -1,8 +1,10 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian"
+import { HelpModal } from "./HelpModal"
+import { NAME_TEMPLATE_HELP } from "./helpText"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
-import { deleteAttachment, renameAttachment } from "./utils"
+import { getActiveEditor, replaceCurrLineInEditor } from "./utils"
 
 interface AttachmentRenamerSettings {
 	nameTemplate: string
@@ -12,6 +14,7 @@ interface AttachmentRenamerSettings {
 	numberPadding: number
 	deleteOnCancel: boolean
 	autoRename: boolean
+	createMissingDirs: boolean
 }
 
 const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
@@ -22,6 +25,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	numberPadding: 0,
 	deleteOnCancel: false,
 	autoRename: false,
+	createMissingDirs: true,
 }
 
 export default class AttachmentRenamerPlugin extends Plugin {
@@ -75,7 +79,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			const p = NaivePath.parse(dst, NaivePath.parseExtension(src))
 			console.log(p)
 			await p.updateIncrement(this.app, this.settings)
-			await renameAttachment(this.app, src, p.renderPath(this.settings))
+			await this.renameAttachment(src, p.renderPath(this.settings))
 			return
 		}
 
@@ -84,11 +88,11 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			dst: dst,
 			settings: this.settings,
 			onAccept: async (value) => {
-				await renameAttachment(this.app, src, value)
+				await this.renameAttachment(src, value)
 			},
 			onCancel: async () => {
 				if (this.settings.deleteOnCancel) {
-					await deleteAttachment(this.app, src)
+					await this.deleteAttachment(src)
 				}
 			},
 			onDontAskChanged: async (value) => {
@@ -106,6 +110,76 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings)
+	}
+
+	private async renameAttachment(src: string, dst: string, noUpdateEditor?: boolean) {
+		const activeFile = this.app.workspace.getActiveFile()
+		const srcFile = this.app.vault.getAbstractFileByPath(src)
+		if (!(srcFile instanceof TFile)) {
+			console.log("something broke, src is not a file", src)
+			return
+		}
+		if (!activeFile) {
+			return
+		}
+
+		// need to capture this here because the rename changes srcFile
+		const oldLink = this.app.fileManager.generateMarkdownLink(srcFile, activeFile.path)
+
+		const p = NaivePath.parse(dst)
+
+		const parentExists = await this.app.vault.adapter.exists(p.parent)
+		if (!parentExists && !this.settings.createMissingDirs) {
+			new Notice(`ERROR: cannot rename attachment, parent directory "${p.parent}" does not exist`)
+			return
+		}
+
+		await this.app.vault.adapter.mkdir(p.parent)
+		await this.app.fileManager.renameFile(srcFile, dst)
+
+		if (noUpdateEditor) {
+			return
+		}
+
+		const editor = getActiveEditor(this.app)
+		if (!editor) {
+			return
+		}
+
+		const dstFile = this.app.vault.getAbstractFileByPath(dst)
+		if (!(dstFile instanceof TFile)) {
+			console.log("something broke, dst is not a file", dst)
+			return
+		}
+
+		const newLink = this.app.fileManager.generateMarkdownLink(dstFile, activeFile.path)
+		console.log(`updating text: "${oldLink}" => "${newLink}"`)
+		replaceCurrLineInEditor(editor, oldLink, newLink)
+	}
+
+	private async deleteAttachment(src: string, noUpdateEditor?: boolean) {
+		const f = this.app.vault.getAbstractFileByPath(src)
+
+		// basic sanity check that this is actually a file to avoid nuking the user's vault if
+		// something breaks in this plugin down the line
+		if (!(f instanceof TFile)) {
+			console.warn(`cannot delete, "${src}" is not a file`)
+			return
+		}
+
+		this.app.vault.delete(f)
+
+		if (noUpdateEditor) {
+			return
+		}
+
+		const activeFile = this.app.workspace.getActiveFile()
+		const editor = getActiveEditor(this.app)
+		if (!activeFile || !editor) {
+			return
+		}
+		const linkText = this.app.fileManager.generateMarkdownLink(f, activeFile.path)
+		replaceCurrLineInEditor(editor, `!${linkText}`, "")
 	}
 }
 
@@ -128,7 +202,11 @@ class SampleSettingTab extends PluginSettingTab {
 				"A template string which controls how the new name is generated. Click the help button for more information."
 			)
 			.setClass("attachment-renamer-setting-wrap")
-			.addButton((button) => button.setIcon("help-circle"))
+			.addButton((button) =>
+				button.setIcon("help-circle").onClick(() => {
+					new HelpModal(this.app, "Name template", NAME_TEMPLATE_HELP).open()
+				})
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("{srcParent}/{noteName}")
@@ -138,6 +216,16 @@ class SampleSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings()
 					})
 					.inputEl.addClass("attachment-renamer-template-input")
+			)
+
+		new Setting(containerEl)
+			.setName("Create missing directories")
+			.setDesc("Create all missing intermediate directories when renaming an attachment")
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.createMissingDirs).onChange(async (value) => {
+					this.plugin.settings.createMissingDirs = value
+					await this.plugin.saveSettings()
+				})
 			)
 
 		new Setting(containerEl)
@@ -154,7 +242,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Auto rename")
-			.setDesc("Rename attachments according to plugin settings without confirmation.")
+			.setDesc("Rename attachments according to plugin settings without confirmation")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoRename).onChange(async (value) => {
 					this.plugin.settings.autoRename = value
