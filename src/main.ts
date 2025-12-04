@@ -1,7 +1,7 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
-import { renderTemplate } from "./template"
+import { TemplateEngine } from "./TemplateEngine"
 import { deleteAttachment, renameAttachment } from "./utils"
 
 interface AttachmentRenamerSettings {
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 
 export default class AttachmentRenamerPlugin extends Plugin {
 	settings: AttachmentRenamerSettings
+	templater: TemplateEngine
 
 	async onload() {
 		await this.loadSettings()
@@ -57,6 +58,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			})
 		)
 
+		this.templater = new TemplateEngine(this.app)
 		this.addSettingTab(new SampleSettingTab(this.app, this))
 	}
 
@@ -67,7 +69,8 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
-		const dst = renderTemplate(this.app, src, this.settings)
+		const dst = this.templater.render(src, this.settings)
+
 		if (this.settings.autoRename) {
 			const p = NaivePath.parse(dst, NaivePath.parseExtension(src))
 			console.log(p)
@@ -128,7 +131,7 @@ class SampleSettingTab extends PluginSettingTab {
 			.addButton((button) => button.setIcon("help-circle"))
 			.addText((text) =>
 				text
-					.setPlaceholder("{srcParent}/{docName}")
+					.setPlaceholder("{srcParent}/{noteName}")
 					.setValue(this.plugin.settings.nameTemplate)
 					.onChange(async (value) => {
 						this.plugin.settings.nameTemplate = value
