@@ -13,6 +13,7 @@ interface TemplateSettings {
 	nameTemplate: string
 	separator: string
 	spaceReplacement: string
+	customTemplateVals: { [key: string]: string }
 }
 
 function getNearestHeading(headings?: HeadingCache[], cursor?: EditorPosition): string {
@@ -132,7 +133,29 @@ export class TemplateEngine {
 			header,
 			separator: settings.separator,
 			uuid: generateUUID,
+			custom: () => this.getCustomValue(settings, activeFile?.parent?.path),
 		}
+	}
+
+	private getCustomValue(settings: TemplateSettings, input?: string): string {
+		if (!input) {
+			return ""
+		}
+
+		let rank = -1
+		let result = ""
+		for (const key in settings.customTemplateVals) {
+			if (input.startsWith(key)) {
+				const value = settings.customTemplateVals[key]
+				const r = key.split("/").length
+				if (r > rank) {
+					rank = r
+					result = value
+				}
+			}
+		}
+
+		return result
 	}
 
 	private replaceSpaces(rendered: string, settings: TemplateSettings): string {

@@ -25,6 +25,7 @@ The following variables can be used in the name template:
 | \`{separator}\` | The separator string | \`-\` |
 | \`{uuid}\` | Random identifier with the format \`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\` | \`da5bdb94-691f-4deb-aca8-0e4fdf6e903d\` |
 | \`{DATE:FORMAT}\` | Used to format the current date. \`FORMAT\` must be a [Moment.js](https://momentjs.com/docs/#/displaying/format/) format string, e.g. \`{{ DATE:YYYY-MM-DD }}\` | \`2025-12-01\` |
+| \`{custom}\` | A custom value based on active note path (see **Folder template values** below for details) | \`...\` |
 
 ## Conditional separator
 
@@ -52,4 +53,15 @@ You can directly edit the path in the rename box to move attachments to differen
 
 >[!WARNING]
 >By default, missing directories are created before the attachment is moved/renamed. This is usually desired behavior, however there is no confirmation for which directories are created. Typos in an attachment path can create a mess of directories in your vault.
+
+## Folder template values
+
+A folder template value allows you to assign a custom value for an attachment created in a note under that folder to be used with the \`{custom}\` template variable.
+
+You can create a template value for any folder by right-clicking it in your explorer and clicking *Create folder template value*.
+
+>[!NOTE]
+>The most specific match is used as the \`{custom}\` value, ranked by the depth of folders in the match. So a match on \`foo\` is rank 1, the lowest priority, and the match \`foo/bar/baz\` is rank 3. The value for \`foo/bar/baz\` would be used for \`{custom}\`, even though \`foo\` also matched.
+
+For example, if you wanted the prefix \`fbz\` to be used for all attachments created in a note under \`Foo/Bar/Baz\`, you can create a folder template value by right-clicking \`Baz\` in your explorer and setting the value to \`fbz\`.
 `

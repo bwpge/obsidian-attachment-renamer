@@ -1,6 +1,8 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian"
+import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from "obsidian"
+import { CreateFolderTemplateModal } from "./CreateFolderTemplateModal"
 import { HelpModal } from "./HelpModal"
 import { NAME_TEMPLATE_HELP } from "./helpText"
+import { ManageFolderValueModal } from "./ManageListModal"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
@@ -15,6 +17,7 @@ interface AttachmentRenamerSettings {
 	deleteOnCancel: boolean
 	autoRename: boolean
 	createMissingDirs: boolean
+	customTemplateVals: { [key: string]: string }
 }
 
 const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
@@ -26,6 +29,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	deleteOnCancel: false,
 	autoRename: false,
 	createMissingDirs: true,
+	customTemplateVals: {},
 }
 
 export default class AttachmentRenamerPlugin extends Plugin {
@@ -61,6 +65,37 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				await this.openRenameModal(file.path)
 			})
 		)
+
+		this.app.workspace.on("file-menu", (menu, f) => {
+			if (!(f instanceof TFolder)) {
+				return
+			}
+
+			const key = f.path
+			if (key in this.settings.customTemplateVals) {
+				menu.addItem((item) => {
+					item.setTitle(`Remove folder template value`)
+						.setIcon("x")
+						.onClick(async () => {
+							delete this.settings.customTemplateVals[key]
+							await this.saveSettings()
+							new Notice(`Removed folder template value for "${f.name}"`)
+						})
+				})
+			} else {
+				menu.addItem((item) => {
+					item.setTitle("Create folder template value")
+						.setIcon("notepad-text-dashed")
+						.onClick(async () => {
+							new CreateFolderTemplateModal(this.app, key, async (value) => {
+								this.settings.customTemplateVals[key] = value
+								await this.saveSettings()
+								new Notice(`Created folder template value for "${f.name}"`)
+							}).open()
+						})
+				})
+			}
+		})
 
 		this.templater = new TemplateEngine(this.app)
 		this.addSettingTab(new SampleSettingTab(this.app, this))
@@ -216,6 +251,13 @@ class SampleSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings()
 					})
 					.inputEl.addClass("attachment-renamer-template-input")
+			)
+
+		new Setting(containerEl)
+			.setName("Folder template values")
+			.setDesc("Sets the {custom} template variable based on the active note path when an attachment is created.")
+			.addButton((button) =>
+				button.setButtonText("Manage").onClick(() => new ManageFolderValueModal(this.plugin).open())
 			)
 
 		new Setting(containerEl)
