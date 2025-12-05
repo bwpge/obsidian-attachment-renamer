@@ -18,6 +18,7 @@ interface AttachmentRenamerSettings {
 	deleteOnCancel: boolean
 	autoRename: boolean
 	createMissingDirs: boolean
+	ignorePattern: string
 	folderVals: { [key: string]: string }
 }
 
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	deleteOnCancel: false,
 	autoRename: false,
 	createMissingDirs: true,
+	ignorePattern: "",
 	folderVals: {},
 }
 
@@ -57,6 +59,10 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				// filesystem weirdness on windows with NTFS.
 				const createdMs = new Date().getTime() - file.stat.ctime
 				if (createdMs > 1000) {
+					return
+				}
+
+				if (this.shouldIgnore(file.path)) {
 					return
 				}
 
@@ -220,6 +226,25 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		const linkText = this.app.fileManager.generateMarkdownLink(f, activeFile.path)
 		replaceCurrLineInEditor(editor, `!${linkText}`, "")
 	}
+
+	private shouldIgnore(value: string): boolean {
+		if (!this.settings.ignorePattern) {
+			return false
+		}
+
+		for (const line of this.settings.ignorePattern.split("\n")) {
+			if (!line) {
+				continue
+			}
+
+			const pat = new RegExp(line)
+			if (value.match(pat)) {
+				return true
+			}
+		}
+
+		return false
+	}
 }
 
 class SampleSettingTab extends PluginSettingTab {
@@ -349,7 +374,7 @@ class SampleSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Separator")
 			.setDesc(
-				"Value used to separate different template values such as name and increment numbers, e.g., foo-02."
+				"Value used to separate different template values such as name and attachment counters, e.g., foo-42."
 			)
 			.addText((text) =>
 				text
@@ -398,6 +423,24 @@ class SampleSettingTab extends PluginSettingTab {
 						await this.updatePreview()
 					})
 			)
+
+		new Setting(containerEl)
+			.setName("Ignore patterns")
+			.setDesc(
+				"Skip processing attachments whose path matches any of these patterns. The full path is tested, including attachment extension. Each line is treated as a separate regular expression. Empty lines are ignored."
+			)
+			.setClass("attachment-renamer-setting-wrap")
+			.addTextArea((text) => {
+				const inputEl = text
+					.setPlaceholder("\\.(docx|pptx|xlsx)$\n^My/Protected/Folder")
+					.setValue(this.plugin.settings.ignorePattern)
+					.onChange(async (value) => {
+						this.plugin.settings.ignorePattern = value
+						await this.plugin.saveSettings()
+					}).inputEl
+				inputEl.rows = 8
+				inputEl.cols = 40
+			})
 	}
 
 	private async updateNameTemplate(value: string) {
