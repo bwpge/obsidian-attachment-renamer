@@ -1,8 +1,6 @@
 import { App, ButtonComponent, Modal, TextComponent, TFile } from "obsidian"
 import { NaivePath } from "./NaivePath"
-import { isImageExt } from "./utils"
-
-const INVALID_CHARS_REGEX = /[\\:*?"<>|]/gu
+import { isImageExt, isValidInput } from "./utils"
 
 type RenameFunc = (value: string) => Promise<void>
 type ResultFunc = () => Promise<void>
@@ -46,12 +44,14 @@ export class RenameModal extends Modal {
 	dstEl: HTMLElement | undefined
 	textComp: TextComponent | undefined
 	renameButton: ButtonComponent | undefined
+	loadingSpinner: HTMLElement | undefined
 
 	constructor(app: App, args: RenameModalArgs) {
 		super(app)
 		this.src = NaivePath.parse(args.src)
 		this.originalVal = args.dst
 		this.value = args.dst
+		this.isValid = isValidInput(this.value)
 		this.settings = args.settings
 		this.onAccept = args.onAccept
 		this.onCancel = args.onCancel
@@ -101,7 +101,7 @@ export class RenameModal extends Modal {
 	}
 
 	private buildPreviewContainer(el: HTMLElement) {
-		const imgEl = el.createDiv({ cls: "attachment-renamer-preview" })
+		const imgEl = el.createDiv({ cls: "attachment-renamer-image-preview" })
 		const imgFile = this.app.vault.getAbstractFileByPath(this.src.original)
 
 		if (imgFile && imgFile instanceof TFile && isImageExt(imgFile.extension)) {
@@ -154,6 +154,9 @@ export class RenameModal extends Modal {
 		})
 		checkBoxLabel.appendText("Don't ask again")
 
+		this.loadingSpinner = buttonContainer.createDiv({ cls: "attachment-renamer-spinner" })
+		this.loadingSpinner.hide()
+
 		this.renameButton = new ButtonComponent(buttonContainer)
 			.setButtonText("Rename")
 			.setCta()
@@ -169,11 +172,14 @@ export class RenameModal extends Modal {
 	private async debounceUpdateUI(ms?: number) {
 		clearTimeout(this.tid)
 		if (this.isValid && ms) {
+			this.loadingSpinner?.show()
 			this.tid = setTimeout(async () => {
 				await this.updateDstEl()
+				this.loadingSpinner?.hide()
 			}, ms)
 		} else {
 			await this.updateDstEl()
+			this.loadingSpinner?.hide()
 		}
 		this.updateUI()
 	}
@@ -206,8 +212,4 @@ export class RenameModal extends Modal {
 		await this.debounceUpdateUI()
 		this.textComp?.inputEl.select()
 	}
-}
-
-function isValidInput(input: string): boolean {
-	return !(input === "" || input.endsWith("/") || input.match(INVALID_CHARS_REGEX))
 }

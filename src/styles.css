@@ -10,14 +10,14 @@
 	width: 100%;
 }
 
-.attachment-renamer-preview {
+.attachment-renamer-image-preview {
 	display: flex;
 	justify-content: center;
 	font-style: italic;
 	padding: 2em 0;
 }
 
-.attachment-renamer-preview img {
+.attachment-renamer-image-preview img {
 	max-height: 300px;
 	max-width: 100%;
 	box-shadow: var(--shadow-s);
@@ -56,8 +56,40 @@
 }
 
 .attachment-renamer-help .modal {
-  width: 90vw;
-  max-width: 900px;
-  max-height: 900px;
-  padding: var(--size-4-8);
+	width: 90vw;
+	max-width: 900px;
+	max-height: 900px;
+	padding: var(--size-4-8);
+}
+
+.attachment-renamer-template-preview  {
+	color: var(--text-muted);
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+	padding-bottom: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}
+
+.attachment-renamer-spinner {
+	border: 3px solid var(--color-accent);
+	border-top: 3px solid var(--background-secondary-alt);
+	border-radius: 50%;
+	width: 1.35em;
+	height: 1.35em;
+	animation: spin 1s linear infinite;
+}
+
+.attachment-renamer-spinner-small {
+	border: 2px solid var(--color-accent);
+	border-top: 2px solid var(--background-secondary-alt);
+	border-radius: 50%;
+	width: 1.15em;
+	height: 1.15em;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
 }

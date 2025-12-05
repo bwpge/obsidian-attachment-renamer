@@ -8,12 +8,15 @@ const NO_VALUES_TEXT =
 	'No values to show. To create new values, right-click a folder in your explorer and click "Create folder template value."'
 
 export class FolderValueManagerModal extends Modal {
+	// TODO: clean this up, we shouldn't need the whole plugin
 	private plugin: AttachmentRenamerPlugin
 	private descEl: HTMLElement
+	private onDelete: () => Promise<void>
 
-	constructor(plugin: AttachmentRenamerPlugin) {
+	constructor(plugin: AttachmentRenamerPlugin, onDelete: () => Promise<void>) {
 		super(plugin.app)
 		this.plugin = plugin
+		this.onDelete = onDelete
 		this.setTitle("Folder template values")
 	}
 
@@ -42,6 +45,7 @@ export class FolderValueManagerModal extends Modal {
 	private async deleteKey(key: string) {
 		delete this.plugin.settings.folderVals[key]
 		await this.plugin.saveSettings()
+		await this.onDelete()
 		this.updateText()
 	}
 

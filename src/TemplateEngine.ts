@@ -159,7 +159,7 @@ export class TemplateEngine {
 
 	private renderVar(tvar: ParsedVar, value: string): string {
 		const sep = this.settings.separator
-		if (!value || !sep) {
+		if (!value) {
 			return ""
 		}
 		const prefix = tvar.prefix ? sep : ""

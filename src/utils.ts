@@ -1,5 +1,7 @@
 import { App, Editor, MarkdownView } from "obsidian"
 
+const INVALID_CHARS_REGEX = /[\\:*?"<>|]/gu
+
 const IMAGE_EXTENSIONS = new Set([
 	"jpg",
 	"jpeg",
@@ -68,6 +70,10 @@ export function replaceCurrLineInEditor(editor: Editor, oldStr: string, newStr: 
 }
 
 export function splitLast(value: string, separator: string): [string, string | undefined] {
+	if (!separator) {
+		return [value, undefined]
+	}
+
 	const idx = value.lastIndexOf(separator) ?? -1
 
 	if (idx < 0) {
@@ -75,4 +81,8 @@ export function splitLast(value: string, separator: string): [string, string | u
 	}
 
 	return [value.slice(0, idx), value.slice(idx + separator.length)]
+}
+
+export function isValidInput(input: string): boolean {
+	return !(input === "" || input.endsWith("/") || input.match(INVALID_CHARS_REGEX))
 }

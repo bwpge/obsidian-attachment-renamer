@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from "obsidian"
+import { App, Notice, Plugin, PluginSettingTab, Setting, TextComponent, TFile, TFolder } from "obsidian"
 import { FolderValueEditorModal } from "./FolderValueEditorModal"
 import { HelpModal } from "./HelpModal"
 import { NAME_TEMPLATE_HELP } from "./helpText"
@@ -6,7 +6,7 @@ import { FolderValueManagerModal } from "./FolderValueManagerModal"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
-import { getActiveEditor, replaceCurrLineInEditor } from "./utils"
+import { getActiveEditor, isValidInput, replaceCurrLineInEditor } from "./utils"
 
 interface AttachmentRenamerSettings {
 	nameTemplate: string
@@ -69,7 +69,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		)
 
 		this.app.workspace.on("file-menu", (menu, f) => {
-			if (!(f instanceof TFolder)) {
+			if (!(f instanceof TFolder) || f.path === "/") {
 				return
 			}
 
@@ -224,6 +224,9 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 class SampleSettingTab extends PluginSettingTab {
 	plugin: AttachmentRenamerPlugin
+	previewTid: NodeJS.Timeout
+	loadingSpinner: HTMLElement | undefined
+	previewText: HTMLElement | undefined
 
 	constructor(app: App, plugin: AttachmentRenamerPlugin) {
 		super(app, plugin)
@@ -235,6 +238,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		containerEl.empty()
 
+		let tmplTextBox: TextComponent | undefined
 		new Setting(containerEl)
 			.setName("Name template")
 			.setDesc(
@@ -246,22 +250,33 @@ class SampleSettingTab extends PluginSettingTab {
 					new HelpModal(this.app, "Name template", NAME_TEMPLATE_HELP).open()
 				})
 			)
-			.addText((text) =>
-				text
-					.setPlaceholder(DEFAULT_SETTINGS.nameTemplate)
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.nameTemplate)
 					.setValue(this.plugin.settings.nameTemplate)
 					.onChange(async (value) => {
-						this.plugin.settings.nameTemplate = value
-						await this.plugin.saveSettings()
+						await this.updateNameTemplate(value)
 					})
 					.inputEl.addClass("attachment-renamer-template-input")
+				tmplTextBox = text
+			})
+			.addButton((button) =>
+				button.setButtonText("Reset").onClick(async () => {
+					tmplTextBox?.setValue(DEFAULT_SETTINGS.nameTemplate)
+					await this.updateNameTemplate(DEFAULT_SETTINGS.nameTemplate)
+				})
 			)
+
+		this.buildPreviewUI(containerEl)
 
 		new Setting(containerEl)
 			.setName("Folder template values")
 			.setDesc("Sets the {custom} template variable based on the active note path when an attachment is created.")
 			.addButton((button) =>
-				button.setButtonText("Manage").onClick(() => new FolderValueManagerModal(this.plugin).open())
+				button.setButtonText("Manage").onClick(async () => {
+					new FolderValueManagerModal(this.plugin, async () => {
+						await this.updatePreview()
+					}).open()
+				})
 			)
 
 		new Setting(containerEl).setName("Behavior").setHeading()
@@ -309,6 +324,7 @@ class SampleSettingTab extends PluginSettingTab {
 				toggle.setValue(this.plugin.settings.alwaysNumber).onChange(async (value) => {
 					this.plugin.settings.alwaysNumber = value
 					await this.plugin.saveSettings()
+					await this.updatePreview()
 				})
 			)
 
@@ -326,12 +342,15 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.numberPadding = value
 						await this.plugin.saveSettings()
+						await this.updatePreview()
 					})
 			)
 
 		new Setting(containerEl)
 			.setName("Separator")
-			.setDesc("Value used to separate the attachment name and increment numbers, e.g., foo-02.")
+			.setDesc(
+				"Value used to separate different template values such as name and increment numbers, e.g., foo-02."
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("-")
@@ -339,6 +358,7 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.separator = value
 						await this.plugin.saveSettings()
+						await this.updatePreview()
 					})
 			)
 
@@ -357,6 +377,7 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.spaceReplacement = value
 						await this.plugin.saveSettings()
+						await this.updatePreview()
 					})
 			)
 
@@ -374,7 +395,46 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.transformName = value
 						await this.plugin.saveSettings()
+						await this.updatePreview()
 					})
 			)
+	}
+
+	private async updateNameTemplate(value: string) {
+		this.plugin.settings.nameTemplate = value
+		await this.plugin.saveSettings()
+		await this.updatePreview()
+	}
+
+	private buildPreviewUI(el: HTMLElement) {
+		const previewDiv = el.createDiv({ cls: "attachment-renamer-template-preview" })
+		this.loadingSpinner = previewDiv?.createDiv({ cls: "attachment-renamer-spinner-small" })
+		this.loadingSpinner.hide()
+		this.previewText = previewDiv.createDiv({ text: "Preview:" })
+		this.updatePreview()
+	}
+
+	async updatePreview() {
+		clearTimeout(this.previewTid)
+		if (!isValidInput(this.plugin.settings.nameTemplate)) {
+			this.loadingSpinner?.hide()
+			this.previewText?.setText("Preview:")
+			return
+		}
+
+		this.loadingSpinner?.show()
+		this.previewTid = setTimeout(async () => {
+			const f = this.app.workspace.getActiveFile()
+			if (f) {
+				const t = this.plugin.templater.render("attachments/Pasted image 20251205121921.png")
+				const p = NaivePath.parse(t, "png")
+				await p.updateIncrement(this.app, this.plugin.settings)
+				this.previewText?.setText(`Preview: ${p.renderPath(this.plugin.settings)}`)
+				this.loadingSpinner?.hide()
+			} else {
+				this.loadingSpinner?.hide()
+				this.previewText?.setText("Preview not available (no active file)")
+			}
+		}, 250)
 	}
 }
