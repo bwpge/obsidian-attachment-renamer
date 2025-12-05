@@ -14,6 +14,7 @@ interface AttachmentRenamerSettings {
 	spaceReplacement: string
 	alwaysNumber: boolean
 	numberPadding: number
+	transformName: string
 	deleteOnCancel: boolean
 	autoRename: boolean
 	createMissingDirs: boolean
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	spaceReplacement: "",
 	alwaysNumber: false,
 	numberPadding: 0,
+	transformName: "",
 	deleteOnCancel: false,
 	autoRename: false,
 	createMissingDirs: true,
@@ -79,7 +81,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 						.onClick(async () => {
 							delete this.settings.customTemplateVals[key]
 							await this.saveSettings()
-							new Notice(`Removed folder template value for "${f.name}"`)
+							new Notice(`Removed template value for "${f.name}"`)
 						})
 				})
 			} else {
@@ -90,14 +92,14 @@ export default class AttachmentRenamerPlugin extends Plugin {
 							new CreateFolderTemplateModal(this.app, key, async (value) => {
 								this.settings.customTemplateVals[key] = value
 								await this.saveSettings()
-								new Notice(`Created folder template value for "${f.name}"`)
+								new Notice(`Created template value for "${f.name}"`)
 							}).open()
 						})
 				})
 			}
 		})
 
-		this.templater = new TemplateEngine(this.app)
+		this.templater = new TemplateEngine(this.app, this.settings)
 		this.addSettingTab(new SampleSettingTab(this.app, this))
 	}
 
@@ -108,7 +110,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
-		const dst = this.templater.render(src, this.settings)
+		const dst = this.templater.render(src)
 
 		if (this.settings.autoRename) {
 			const p = NaivePath.parse(dst, NaivePath.parseExtension(src))
@@ -145,6 +147,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings)
+		this.templater.updateSettings(this.settings)
 	}
 
 	private async renameAttachment(src: string, dst: string, noUpdateEditor?: boolean) {
@@ -290,6 +293,23 @@ class SampleSettingTab extends PluginSettingTab {
 					this.plugin.settings.autoRename = value
 					await this.plugin.saveSettings()
 				})
+			)
+
+		new Setting(containerEl)
+			.setName("Transform name")
+			.setDesc("Change the new name to uppercase or lowercase")
+			.addDropdown((menu) =>
+				menu
+					.addOptions({
+						"": "None",
+						lower: "Lowercase",
+						upper: "Uppercase",
+					})
+					.setValue(this.plugin.settings.transformName)
+					.onChange(async (value) => {
+						this.plugin.settings.transformName = value
+						await this.plugin.saveSettings()
+					})
 			)
 
 		new Setting(containerEl)

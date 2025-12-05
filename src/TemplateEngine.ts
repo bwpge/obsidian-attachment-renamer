@@ -2,7 +2,8 @@ import { App, EditorPosition, HeadingCache, MarkdownView } from "obsidian"
 import { NaivePath } from "./NaivePath"
 import { generateUUID, splitLast } from "./utils"
 
-const tmplVar = /{{?\s*([\w:-]+)\s*}?}/g
+const SPACES_PATTERN = /\s/g
+const TEMPALTE_VAR = /{{?\s*([\w:-]+)\s*}?}/g
 
 export type TemplateValue = string | ((str?: string) => string)
 export type TemplateVars = {
@@ -13,7 +14,43 @@ interface TemplateSettings {
 	nameTemplate: string
 	separator: string
 	spaceReplacement: string
+	transformName: string
 	customTemplateVals: { [key: string]: string }
+}
+
+interface ParsedVar {
+	ns: string
+	name: string
+	prefix: boolean
+	suffix: boolean
+}
+
+function parseVar(value: string): ParsedVar {
+	const result = {
+		ns: "",
+		name: "",
+		prefix: false,
+		suffix: false,
+	}
+
+	let v = value.replace(SPACES_PATTERN, "")
+	if (v.startsWith("-")) {
+		v = v.slice(1)
+		result.prefix = true
+	}
+	if (v.endsWith("-")) {
+		v = v.slice(0, -1)
+		result.suffix = true
+	}
+
+	if (v.contains(":")) {
+		const [before, after] = v.split(":", 2)
+		result.ns = before.trim()
+		v = after.trim()
+	}
+
+	result.name = v
+	return result
 }
 
 function getNearestHeading(headings?: HeadingCache[], cursor?: EditorPosition): string {
@@ -44,69 +81,52 @@ function getNearestHeading(headings?: HeadingCache[], cursor?: EditorPosition): 
 }
 
 export class TemplateEngine {
-	app: App
+	private app: App
+	private settings: TemplateSettings
 
-	constructor(app: App) {
+	constructor(app: App, settings: TemplateSettings) {
 		this.app = app
+		this.settings = settings
 	}
 
-	render(src: string, settings: TemplateSettings) {
-		const vars = this.buildVars(src, settings)
+	updateSettings(settings: TemplateSettings) {
+		this.settings = settings
+	}
+
+	render(src: string) {
+		const vars = this.buildVars(src, this.settings)
 		const now = window.moment()
-		const sep = vars["separator"] ?? ""
 
-		const rendered = settings.nameTemplate.replace(tmplVar, (match, k: string) => {
-			let key = k.replace(/\s/g, "")
-			let hasPrefix = false
-			let hasSuffix = false
-			if (key.startsWith("-")) {
-				key = key.slice(1)
-				hasPrefix = true
-			}
-			if (key.endsWith("-")) {
-				key = key.slice(0, -1)
-				hasSuffix = true
-			}
-
-			if (!key) {
+		let rendered = this.settings.nameTemplate.replace(TEMPALTE_VAR, (match, k: string) => {
+			const tvar = parseVar(k)
+			if (!tvar) {
 				return ""
 			}
 
-			const formatValue = (v: string) => {
-				if (!v || !sep) {
-					return v
-				}
-				const prefix = hasPrefix ? sep : ""
-				const suffix = hasSuffix ? sep : ""
-				return `${prefix}${v}${suffix}`
+			if (tvar.ns == "DATE") {
+				return now.format(tvar.name)
 			}
 
-			if (key.contains(":")) {
-				const [prefix, value] = key.split(":", 2)
-				if (prefix == "DATE") {
-					return now.format(value)
-				}
-				return ""
-			}
-
-			if (key in vars) {
-				const value = vars[key]
-				let result = ""
+			if (tvar.name in vars) {
+				const value = vars[tvar.name]
+				let output = ""
 				if (typeof value == "string") {
-					result = value
+					output = value
 				} else {
-					result = value()
+					output = value()
 				}
 
-				return formatValue(result)
+				return this.renderVar(tvar, output)
 			}
 
-			console.warn(`unknown template variable '${key}'`)
+			console.warn(`unknown template variable '${tvar.name}'`)
 			return match
 		})
 
-		const result = this.replaceSpaces(rendered, settings)
-		return result
+		// TODO: we shouldn't have to keep splitting the rendered value, need to fix
+		rendered = this.applyTransform(this.replaceSpaces(rendered))
+
+		return rendered
 	}
 
 	private buildVars(src: string, settings: TemplateSettings): TemplateVars {
@@ -137,6 +157,17 @@ export class TemplateEngine {
 		}
 	}
 
+	private renderVar(tvar: ParsedVar, value: string): string {
+		const sep = this.settings.separator
+		if (!value || !sep) {
+			return ""
+		}
+		const prefix = tvar.prefix ? sep : ""
+		const suffix = tvar.suffix ? sep : ""
+
+		return `${prefix}${value}${suffix}`
+	}
+
 	private getCustomValue(settings: TemplateSettings, input?: string): string {
 		if (!input) {
 			return ""
@@ -158,14 +189,14 @@ export class TemplateEngine {
 		return result
 	}
 
-	private replaceSpaces(rendered: string, settings: TemplateSettings): string {
-		if (!settings.spaceReplacement || !rendered.contains(" ")) {
+	private replaceSpaces(rendered: string): string {
+		if (!this.settings.spaceReplacement || !rendered.contains(" ")) {
 			return rendered
 		}
 
-		const replace = settings.spaceReplacement === "NONE" ? "" : settings.spaceReplacement
+		const replace = this.settings.spaceReplacement === "NONE" ? "" : this.settings.spaceReplacement
 		if (!rendered.contains("/")) {
-			return rendered.replace(/\s/g, replace)
+			return rendered.replace(SPACES_PATTERN, replace)
 		}
 
 		// eslint-disable-next-line prefer-const
@@ -173,7 +204,29 @@ export class TemplateEngine {
 		if (!after) {
 			return rendered
 		}
-		after = after.replace(/\s/g, replace)
+		after = after.replace(SPACES_PATTERN, replace)
 		return `${before}/${after}`
+	}
+
+	private applyTransform(value: string): string {
+		if (!this.settings.transformName) {
+			return value
+		}
+
+		const transform = (s: string) => {
+			if (this.settings.transformName == "upper") {
+				return s.toUpperCase()
+			} else if (this.settings.transformName == "lower") {
+				return s.toLowerCase()
+			}
+			return s
+		}
+
+		if (!value.contains("/")) {
+			return transform(value)
+		}
+
+		const [before, after] = splitLast(value, "/")
+		return `${before}/${transform(after ?? "")}`
 	}
 }
