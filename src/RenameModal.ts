@@ -82,7 +82,7 @@ export class RenameModal extends Modal {
 		if (this.acceptRename) {
 			if (this.onAccept) {
 				const p = NaivePath.parse(this.value, this.src.extension)
-				await p.updateIncrement(this.app, this.settings)
+				await p.updateCounter(this.app, this.settings)
 				await this.onAccept(p.renderPath(this.settings))
 			}
 		} else {
@@ -202,7 +202,7 @@ export class RenameModal extends Modal {
 		}
 
 		const p = NaivePath.parse(this.value, this.src.extension)
-		await p.updateIncrement(this.app, this.settings)
+		await p.updateCounter(this.app, this.settings)
 		this.dstEl?.setText(p.renderPath(this.settings))
 	}
 

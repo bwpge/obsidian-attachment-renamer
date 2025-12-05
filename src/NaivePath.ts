@@ -11,7 +11,7 @@ export class NaivePath {
 	parent = ""
 	basename = ""
 	extension = ""
-	increment = 0
+	private counter = 0
 
 	static parse(src: string, overrideExtension?: string): NaivePath {
 		const p = new NaivePath()
@@ -60,13 +60,13 @@ export class NaivePath {
 		return this.parent === "" ? this.basename : `${this.parent}/${this.basename}`
 	}
 
-	async updateIncrement(app: App, opts: RenderPathOpts) {
+	async updateCounter(app: App, opts: RenderPathOpts) {
 		let base = opts.alwaysNumber ? 1 : 0
 		let listed
 		try {
 			listed = await app.vault.adapter.list(this.parent)
 		} catch {
-			this.increment = base
+			this.counter = base
 			return
 		}
 
@@ -100,16 +100,16 @@ export class NaivePath {
 			}
 		}
 
-		this.increment = Math.max(num, base)
+		this.counter = Math.max(num, base)
 	}
 
 	renderBaseName(opts?: RenderPathOpts): string {
 		const basename = this.basename
-		if (!opts?.alwaysNumber && this.increment <= 0) {
+		if (!opts?.alwaysNumber && this.counter <= 0) {
 			return basename
 		}
 
-		const n = String(this.increment).padStart(opts?.numberPadding ?? 0, "0")
+		const n = String(this.counter).padStart(opts?.numberPadding ?? 0, "0")
 		return `${basename}${opts?.separator ?? ""}${n}`
 	}
 

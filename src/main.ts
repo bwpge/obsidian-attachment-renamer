@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TextComponent, TFile, TFolder } from "obsidian"
+import { App, EmbedCache, Notice, Plugin, PluginSettingTab, Setting, TextComponent, TFile, TFolder } from "obsidian"
 import { FolderValueEditorModal } from "./FolderValueEditorModal"
 import { HelpModal } from "./HelpModal"
 import { NAME_TEMPLATE_HELP } from "./helpText"
@@ -6,7 +6,8 @@ import { FolderValueManagerModal } from "./FolderValueManagerModal"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
-import { getActiveEditor, isValidInput, replaceCurrLineInEditor } from "./utils"
+import { getActiveEditor, getTempFileName, isValidInput, replaceCurrLineInEditor } from "./utils"
+import { ConfirmModal } from "./ConfirmModal"
 
 interface AttachmentRenamerSettings {
 	nameTemplate: string
@@ -16,7 +17,8 @@ interface AttachmentRenamerSettings {
 	numberPadding: number
 	transformName: string
 	deleteOnCancel: boolean
-	autoRename: boolean
+	confirmRename: boolean
+	confirmRenameAll: boolean
 	createMissingDirs: boolean
 	ignorePattern: string
 	folderVals: { [key: string]: string }
@@ -30,10 +32,17 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	numberPadding: 0,
 	transformName: "",
 	deleteOnCancel: false,
-	autoRename: false,
-	createMissingDirs: true,
+	confirmRename: true,
+	confirmRenameAll: true,
+	createMissingDirs: false,
 	ignorePattern: "",
 	folderVals: {},
+}
+
+interface LinkStats {
+	files: TFile[]
+	ignored: number
+	links: number
 }
 
 export default class AttachmentRenamerPlugin extends Plugin {
@@ -42,6 +51,16 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings()
+		this.templater = new TemplateEngine(this.app, this.settings)
+		this.addSettingTab(new SampleSettingTab(this.app, this))
+
+		this.addCommand({
+			id: "attachment-renamer-rename-all",
+			name: "Rename all in active file",
+			callback: async () => {
+				await this.renameAllActive()
+			},
+		})
 
 		this.registerEvent(
 			this.app.vault.on("create", async (file) => {
@@ -105,9 +124,6 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				})
 			}
 		})
-
-		this.templater = new TemplateEngine(this.app, this.settings)
-		this.addSettingTab(new SampleSettingTab(this.app, this))
 	}
 
 	async openRenameModal(src: string) {
@@ -119,10 +135,9 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 		const dst = this.templater.render(src)
 
-		if (this.settings.autoRename) {
+		if (!this.settings.confirmRename) {
 			const p = NaivePath.parse(dst, NaivePath.parseExtension(src))
-			console.log(p)
-			await p.updateIncrement(this.app, this.settings)
+			await p.updateCounter(this.app, this.settings)
 			await this.renameAttachment(src, p.renderPath(this.settings))
 			return
 		}
@@ -132,15 +147,71 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			dst: dst,
 			settings: this.settings,
 			onAccept: async (value) => {
-				await this.renameAttachment(src, value)
+				await this.renameAttachment(src, value, true)
 			},
 			onCancel: async () => {
 				if (this.settings.deleteOnCancel) {
 					await this.deleteAttachment(src)
 				}
 			},
-			onDontAskChanged: async (value) => {
-				this.settings.autoRename = value
+			onDontAskChanged: async (checked) => {
+				this.settings.confirmRename = !checked
+				await this.saveSettings()
+			},
+		}).open()
+	}
+
+	async renameAllActive() {
+		const activeFile = this.app.workspace.getActiveFile()
+		if (!activeFile) {
+			new Notice("No active file found")
+			return
+		}
+		const embeds = this.app.metadataCache.getFileCache(activeFile)?.embeds
+		if (!embeds) {
+			new Notice("No attachment links found")
+			return
+		}
+
+		const { files, links, ignored } = this.getLinkStats(activeFile, embeds)
+		const filesAffected = `${files.length} ${files.length === 1 ? "file" : "files"}`
+		const linksAffected = `${links} ${links === 1 ? "link" : "links"}`
+		const ignoredText = ` (${ignored} ${ignored === 1 ? "attachment" : "attachments"} will be ignored by your plugin settings)`
+
+		const doRenameAll = async () => {
+			// move each file to a temp file first to avoid leap frogging attachment numbers
+			for (const f of files) {
+				const dst = getTempFileName(f, "renameall_")
+				await this.app.fileManager.renameFile(f, dst)
+			}
+
+			for (const f of files) {
+				const src = f.path
+				const dst = this.templater.render(src)
+				const p = NaivePath.parse(dst, f.extension)
+				await p.updateCounter(this.app, this.settings)
+				await this.renameAttachment(src, p.renderPath(this.settings), true)
+			}
+		}
+
+		if (!this.settings.confirmRenameAll) {
+			await doRenameAll()
+			return
+		}
+
+		new ConfirmModal(this.app, {
+			title: "Rename all attachments",
+			body: [
+				`Are you sure you want to rename all attachments in "${activeFile.basename}"?`,
+				`This will rename ${filesAffected} with ${linksAffected} in the current note${ignored > 0 ? ignoredText : ""}.`,
+				"Be sure that your plugin settings produce the desired attachment names. There is no confirmation for individual rename operations.",
+			],
+			warning:
+				"There is no way to undo this operation. Always backup your vault before renaming all attachments.",
+			confirmButtonText: "Rename",
+			onConfirm: doRenameAll,
+			onDontAskChanged: async (checked) => {
+				this.settings.confirmRenameAll = !checked
 				await this.saveSettings()
 			},
 		}).open()
@@ -245,6 +316,32 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 		return false
 	}
+
+	private getLinkStats(activeFile: TFile, embeds: EmbedCache[]): LinkStats {
+		const seen = new Set()
+		const files: TFile[] = []
+		let links = 0
+		let ignored = 0
+		for (const embed of embeds) {
+			const file = this.app.metadataCache.getFirstLinkpathDest(embed.link, activeFile.path)
+			if (!file) {
+				continue
+			}
+			if (this.shouldIgnore(file.path)) {
+				ignored += 1
+				continue
+			}
+
+			links += 1
+			if (seen.has(file.path)) {
+				continue
+			}
+			seen.add(file.path)
+			files.push(file)
+		}
+
+		return { files, links, ignored }
+	}
 }
 
 class SampleSettingTab extends PluginSettingTab {
@@ -304,7 +401,7 @@ class SampleSettingTab extends PluginSettingTab {
 				})
 			)
 
-		new Setting(containerEl).setName("Behavior").setHeading()
+		new Setting(containerEl).setName("Filesystem").setHeading()
 
 		new Setting(containerEl)
 			.setName("Create missing directories")
@@ -328,12 +425,24 @@ class SampleSettingTab extends PluginSettingTab {
 				})
 			)
 
+		new Setting(containerEl).setName("Confirmation").setHeading()
+
 		new Setting(containerEl)
-			.setName("Automatically rename attachments")
-			.setDesc("Do not show a confirmation prompt to rename attachments.")
+			.setName("Confirm individual attachment rename")
+			.setDesc("Ask before renaming an individual attachment.")
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.autoRename).onChange(async (value) => {
-					this.plugin.settings.autoRename = value
+				toggle.setValue(this.plugin.settings.confirmRename).onChange(async (value) => {
+					this.plugin.settings.confirmRename = value
+					await this.plugin.saveSettings()
+				})
+			)
+
+		new Setting(containerEl)
+			.setName("Confirm when renaming all attachments")
+			.setDesc("Ask before renaming all attachments in the active note.")
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.confirmRenameAll).onChange(async (value) => {
+					this.plugin.settings.confirmRenameAll = value
 					await this.plugin.saveSettings()
 				})
 			)
@@ -343,7 +452,7 @@ class SampleSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Always number attachments")
 			.setDesc(
-				"Rename all attachments with an increment e.g., foo-01. Otherwise, only use an increment when the attachment name already exists."
+				"Rename all attachments with a counter e.g., foo-1. Otherwise, only use a counter when the attachment name already exists."
 			)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.alwaysNumber).onChange(async (value) => {
@@ -471,7 +580,7 @@ class SampleSettingTab extends PluginSettingTab {
 			if (f) {
 				const t = this.plugin.templater.render("attachments/Pasted image 20251205121921.png")
 				const p = NaivePath.parse(t, "png")
-				await p.updateIncrement(this.app, this.plugin.settings)
+				await p.updateCounter(this.app, this.plugin.settings)
 				this.previewText?.setText(`Preview: ${p.renderPath(this.plugin.settings)}`)
 				this.loadingSpinner?.hide()
 			} else {

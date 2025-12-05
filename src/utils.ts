@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView } from "obsidian"
+import { App, Editor, MarkdownView, TFile } from "obsidian"
 
 const INVALID_CHARS_REGEX = /[\\:*?"<>|]/gu
 
@@ -85,4 +85,13 @@ export function splitLast(value: string, separator: string): [string, string | u
 
 export function isValidInput(input: string): boolean {
 	return !(input === "" || input.endsWith("/") || input.match(INVALID_CHARS_REGEX))
+}
+
+export function getTempFileName(f: TFile, prefix?: string): string {
+	const parent = f.parent?.path ?? ""
+	const sep = parent === "" ? "" : "/"
+	const name = generateUUID()
+	const ext = f.extension === "" ? "" : "." + f.extension
+
+	return `${parent}${sep}${prefix ?? ""}${name}${ext}`
 }
