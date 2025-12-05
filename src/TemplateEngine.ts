@@ -15,7 +15,7 @@ interface TemplateSettings {
 	separator: string
 	spaceReplacement: string
 	transformName: string
-	customTemplateVals: { [key: string]: string }
+	folderVals: { [key: string]: string }
 }
 
 interface ParsedVar {
@@ -175,9 +175,9 @@ export class TemplateEngine {
 
 		let rank = -1
 		let result = ""
-		for (const key in settings.customTemplateVals) {
+		for (const key in settings.folderVals) {
 			if (input.startsWith(key)) {
-				const value = settings.customTemplateVals[key]
+				const value = settings.folderVals[key]
 				const r = key.split("/").length
 				if (r > rank) {
 					rank = r

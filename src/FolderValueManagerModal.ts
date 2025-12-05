@@ -7,9 +7,9 @@ import AttachmentRenamerPlugin from "./main"
 const NO_VALUES_TEXT =
 	'No values to show. To create new values, right-click a folder in your explorer and click "Create folder template value."'
 
-export class ManageFolderValueModal extends Modal {
+export class FolderValueManagerModal extends Modal {
 	private plugin: AttachmentRenamerPlugin
-	private introEl: HTMLElement
+	private descEl: HTMLElement
 
 	constructor(plugin: AttachmentRenamerPlugin) {
 		super(plugin.app)
@@ -20,13 +20,13 @@ export class ManageFolderValueModal extends Modal {
 	onOpen() {
 		const { contentEl: content } = this
 		const body = content.createEl("div", { cls: "hidden-list-modal-body" })
-		this.introEl = body.createEl("p")
+		this.descEl = body.createEl("p")
 		this.updateText()
 
-		for (const key in this.plugin.settings.customTemplateVals) {
+		for (const key in this.plugin.settings.folderVals) {
 			const s = new Setting(body)
 				.setName(key)
-				.setDesc(`Value: ${this.plugin.settings.customTemplateVals[key]}`)
+				.setDesc(`Value: ${this.plugin.settings.folderVals[key]}`)
 				.addButton((button) => {
 					button
 						.setIcon("trash")
@@ -40,14 +40,14 @@ export class ManageFolderValueModal extends Modal {
 	}
 
 	private async deleteKey(key: string) {
-		delete this.plugin.settings.customTemplateVals[key]
+		delete this.plugin.settings.folderVals[key]
 		await this.plugin.saveSettings()
 		this.updateText()
 	}
 
 	private updateText() {
-		if (Object.keys(this.plugin.settings.customTemplateVals).length === 0) {
-			this.introEl.setText(NO_VALUES_TEXT)
+		if (Object.keys(this.plugin.settings.folderVals).length === 0) {
+			this.descEl.setText(NO_VALUES_TEXT)
 		}
 	}
 

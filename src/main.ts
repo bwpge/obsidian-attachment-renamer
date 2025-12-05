@@ -1,8 +1,8 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from "obsidian"
-import { CreateFolderTemplateModal } from "./CreateFolderTemplateModal"
+import { FolderValueEditorModal } from "./FolderValueEditorModal"
 import { HelpModal } from "./HelpModal"
 import { NAME_TEMPLATE_HELP } from "./helpText"
-import { ManageFolderValueModal } from "./ManageListModal"
+import { FolderValueManagerModal } from "./FolderValueManagerModal"
 import { NaivePath } from "./NaivePath"
 import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
@@ -18,11 +18,11 @@ interface AttachmentRenamerSettings {
 	deleteOnCancel: boolean
 	autoRename: boolean
 	createMissingDirs: boolean
-	customTemplateVals: { [key: string]: string }
+	folderVals: { [key: string]: string }
 }
 
 const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
-	nameTemplate: "{srcParent}/{docName}",
+	nameTemplate: "{srcParent}/{custom-}{noteName}",
 	separator: "-",
 	spaceReplacement: "",
 	alwaysNumber: false,
@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 	deleteOnCancel: false,
 	autoRename: false,
 	createMissingDirs: true,
-	customTemplateVals: {},
+	folderVals: {},
 }
 
 export default class AttachmentRenamerPlugin extends Plugin {
@@ -74,14 +74,19 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			}
 
 			const key = f.path
-			if (key in this.settings.customTemplateVals) {
+			const startValue = this.settings.folderVals[key]
+			const onAccept = async (value: string) => {
+				this.settings.folderVals[key] = value
+				await this.saveSettings()
+				new Notice(`Updated value for "${f.name}"`)
+			}
+
+			if (key in this.settings.folderVals) {
 				menu.addItem((item) => {
-					item.setTitle(`Remove folder template value`)
-						.setIcon("x")
+					item.setTitle("Edit folder template value")
+						.setIcon("notepad-text-dashed")
 						.onClick(async () => {
-							delete this.settings.customTemplateVals[key]
-							await this.saveSettings()
-							new Notice(`Removed template value for "${f.name}"`)
+							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
 						})
 				})
 			} else {
@@ -89,11 +94,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 					item.setTitle("Create folder template value")
 						.setIcon("notepad-text-dashed")
 						.onClick(async () => {
-							new CreateFolderTemplateModal(this.app, key, async (value) => {
-								this.settings.customTemplateVals[key] = value
-								await this.saveSettings()
-								new Notice(`Created template value for "${f.name}"`)
-							}).open()
+							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
 						})
 				})
 			}
@@ -237,7 +238,7 @@ class SampleSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Name template")
 			.setDesc(
-				"A template string which controls how the new name is generated. Click the help button for more information."
+				"A template string which controls how the attachment path is generated. Click the help button for more information."
 			)
 			.setClass("attachment-renamer-setting-wrap")
 			.addButton((button) =>
@@ -247,7 +248,7 @@ class SampleSettingTab extends PluginSettingTab {
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("{srcParent}/{noteName}")
+					.setPlaceholder(DEFAULT_SETTINGS.nameTemplate)
 					.setValue(this.plugin.settings.nameTemplate)
 					.onChange(async (value) => {
 						this.plugin.settings.nameTemplate = value
@@ -260,8 +261,10 @@ class SampleSettingTab extends PluginSettingTab {
 			.setName("Folder template values")
 			.setDesc("Sets the {custom} template variable based on the active note path when an attachment is created.")
 			.addButton((button) =>
-				button.setButtonText("Manage").onClick(() => new ManageFolderValueModal(this.plugin).open())
+				button.setButtonText("Manage").onClick(() => new FolderValueManagerModal(this.plugin).open())
 			)
+
+		new Setting(containerEl).setName("Behavior").setHeading()
 
 		new Setting(containerEl)
 			.setName("Create missing directories")
@@ -286,8 +289,8 @@ class SampleSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName("Auto rename")
-			.setDesc("Rename attachments according to plugin settings without confirmation")
+			.setName("Automatically rename attachments")
+			.setDesc("Do not show a confirmation prompt to rename attachments.")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoRename).onChange(async (value) => {
 					this.plugin.settings.autoRename = value
@@ -295,55 +298,12 @@ class SampleSettingTab extends PluginSettingTab {
 				})
 			)
 
-		new Setting(containerEl)
-			.setName("Transform name")
-			.setDesc("Change the new name to uppercase or lowercase")
-			.addDropdown((menu) =>
-				menu
-					.addOptions({
-						"": "None",
-						lower: "Lowercase",
-						upper: "Uppercase",
-					})
-					.setValue(this.plugin.settings.transformName)
-					.onChange(async (value) => {
-						this.plugin.settings.transformName = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		new Setting(containerEl)
-			.setName("Separator")
-			.setDesc("Used to separate the attachment name and increment numbers, e.g., foo-02")
-			.addText((text) =>
-				text
-					.setPlaceholder("-")
-					.setValue(this.plugin.settings.separator)
-					.onChange(async (value) => {
-						this.plugin.settings.separator = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		new Setting(containerEl)
-			.setName("Space replacement")
-			.setDesc(
-				"Only used in the attachment name, not parent directories. Use NONE to replace spaces with an empty string. Leave empty to disable."
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("disabled")
-					.setValue(this.plugin.settings.spaceReplacement)
-					.onChange(async (value) => {
-						this.plugin.settings.spaceReplacement = value
-						await this.plugin.saveSettings()
-					})
-			)
+		new Setting(containerEl).setName("Attachment numbering").setHeading()
 
 		new Setting(containerEl)
 			.setName("Always number attachments")
 			.setDesc(
-				"If enabled, all attachments will be renamed with an increment e.g., foo-01. Otherwise, attachments will not have a number unless conflicting with an existing file."
+				"Rename all attachments with an increment e.g., foo-01. Otherwise, only use an increment when the attachment name already exists."
 			)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.alwaysNumber).onChange(async (value) => {
@@ -365,6 +325,54 @@ class SampleSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.numberPadding)
 					.onChange(async (value) => {
 						this.plugin.settings.numberPadding = value
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
+			.setName("Separator")
+			.setDesc("Value used to separate the attachment name and increment numbers, e.g., foo-02.")
+			.addText((text) =>
+				text
+					.setPlaceholder("-")
+					.setValue(this.plugin.settings.separator)
+					.onChange(async (value) => {
+						this.plugin.settings.separator = value
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
+			.setName("String operations")
+			.setHeading()
+			.setDesc("These options only apply to the attachment name, not parent directories.")
+
+		new Setting(containerEl)
+			.setName("Space replacement")
+			.setDesc("Use NONE to replace spaces with an empty string. Leave empty to disable.")
+			.addText((text) =>
+				text
+					.setPlaceholder("disabled")
+					.setValue(this.plugin.settings.spaceReplacement)
+					.onChange(async (value) => {
+						this.plugin.settings.spaceReplacement = value
+						await this.plugin.saveSettings()
+					})
+			)
+
+		new Setting(containerEl)
+			.setName("Transform name")
+			.setDesc("Change the attachment name to uppercase or lowercase.")
+			.addDropdown((menu) =>
+				menu
+					.addOptions({
+						"": "None",
+						lower: "Lowercase",
+						upper: "Uppercase",
+					})
+					.setValue(this.plugin.settings.transformName)
+					.onChange(async (value) => {
+						this.plugin.settings.transformName = value
 						await this.plugin.saveSettings()
 					})
 			)
