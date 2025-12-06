@@ -7,13 +7,15 @@ import AttachmentRenamerPlugin from "./main"
 const NO_VALUES_TEXT =
 	'No values to show. To create new values, right-click a folder in your explorer and click "Create folder template value."'
 
+type OnDeleteCallback = () => void | Promise<void>
+
 export class FolderValueManagerModal extends Modal {
 	// TODO: clean this up, we shouldn't need the whole plugin
 	private plugin: AttachmentRenamerPlugin
 	private descEl: HTMLElement
-	private onDelete: () => Promise<void>
+	private onDelete: OnDeleteCallback
 
-	constructor(plugin: AttachmentRenamerPlugin, onDelete: () => Promise<void>) {
+	constructor(plugin: AttachmentRenamerPlugin, onDelete: OnDeleteCallback) {
 		super(plugin.app)
 		this.plugin = plugin
 		this.onDelete = onDelete
@@ -45,7 +47,12 @@ export class FolderValueManagerModal extends Modal {
 	private async deleteKey(key: string) {
 		delete this.plugin.settings.folderVals[key]
 		await this.plugin.saveSettings()
-		await this.onDelete()
+
+		const d = this.onDelete()
+		if (this.onDelete instanceof Promise) {
+			await d
+		}
+
 		this.updateText()
 	}
 

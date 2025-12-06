@@ -2,7 +2,7 @@
 
 This plugin was originally a fork of [reorx/obsidian-paste-image-rename](https://github.com/reorx/obsidian-paste-image-rename), but has turned into a full rewrite from the ground up. Paste image rename is a great plugin, but it seems development has paused on enhancements for the time being.
 
-My goal with this plugin is to bring forward the core features of Paste image rename while implementing missing features. Several additional features have been copied or inspired from [xRyul/obsidian-image-converter](https://github.com/xRyul/obsidian-image-converter).
+My goal with this plugin is to bring forward the core features of Paste image rename while implementing missing features.
 
 ## Features and improvements
 
@@ -158,3 +158,11 @@ You can create a template value for any folder by right-clicking it in your expl
 >The most specific match is used as the `{custom}` value, ranked by the depth of folders in the match. So a match on `foo` is rank 1, the lowest priority, and the match `foo/bar/baz` is rank 3. The value for `foo/bar/baz` would be used for `{custom}`, even though `foo` also matched.
 
 For example, if you wanted the prefix `fbz` to be used for all attachments created in a note under `Foo/Bar/Baz`, you can create a folder template value by right-clicking `Baz` in your explorer and setting the value to `fbz`. You can then use `{custom-}` in your template to create a value followed by `{separator}`.
+
+## Acknowledgements
+
+This plugin is based on the great work of several other popular projects:
+
+- [reorx/obsidian-paste-image-rename](https://github.com/reorx/obsidian-paste-image-rename): the main inspiration for this plugin
+- [xRyul/obsidian-image-converter](https://github.com/xRyul/obsidian-image-converter): inspiration for many new features, such as better template syntax and preview in settings tab
+- [Eldritch-Oliver/file-hider](https://github.com/Eldritch-Oliver/file-hider): copied their implementation for managing folder template values (right-click menu and settings UI)

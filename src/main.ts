@@ -52,11 +52,11 @@ export default class AttachmentRenamerPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings()
 		this.templater = new TemplateEngine(this.app, this.settings)
-		this.addSettingTab(new SampleSettingTab(this.app, this))
+		this.addSettingTab(new AttachmentRenamerSettingTab(this.app, this))
 
 		this.addCommand({
-			id: "attachment-renamer-rename-all",
-			name: "Rename all in active file",
+			id: "rename-all",
+			name: "Rename all attachments in active note",
 			callback: async () => {
 				await this.renameAllActive()
 			},
@@ -110,7 +110,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				menu.addItem((item) => {
 					item.setTitle("Edit folder template value")
 						.setIcon("notepad-text-dashed")
-						.onClick(async () => {
+						.onClick(() => {
 							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
 						})
 				})
@@ -118,7 +118,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				menu.addItem((item) => {
 					item.setTitle("Create folder template value")
 						.setIcon("notepad-text-dashed")
-						.onClick(async () => {
+						.onClick(() => {
 							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
 						})
 				})
@@ -232,7 +232,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		const activeFile = this.app.workspace.getActiveFile()
 		const srcFile = this.app.vault.getAbstractFileByPath(src)
 		if (!(srcFile instanceof TFile)) {
-			console.log("something broke, src is not a file", src)
+			console.warn("cannot rename: src is not a file", src)
 			return
 		}
 		if (!activeFile) {
@@ -264,12 +264,11 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 		const dstFile = this.app.vault.getAbstractFileByPath(dst)
 		if (!(dstFile instanceof TFile)) {
-			console.log("something broke, dst is not a file", dst)
+			console.warn("cannot rename: src is not a file", dst)
 			return
 		}
 
 		const newLink = this.app.fileManager.generateMarkdownLink(dstFile, activeFile.path)
-		console.log(`updating text: "${oldLink}" => "${newLink}"`)
 		replaceCurrLineInEditor(editor, oldLink, newLink)
 	}
 
@@ -283,7 +282,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
-		this.app.vault.delete(f)
+		await this.app.vault.delete(f)
 
 		if (noUpdateEditor) {
 			return
@@ -344,7 +343,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
+class AttachmentRenamerSettingTab extends PluginSettingTab {
 	plugin: AttachmentRenamerPlugin
 	previewTid: NodeJS.Timeout
 	loadingSpinner: HTMLElement | undefined
@@ -394,9 +393,9 @@ class SampleSettingTab extends PluginSettingTab {
 			.setName("Folder template values")
 			.setDesc("Sets the {custom} template variable based on the active note path when an attachment is created.")
 			.addButton((button) =>
-				button.setButtonText("Manage").onClick(async () => {
-					new FolderValueManagerModal(this.plugin, async () => {
-						await this.updatePreview()
+				button.setButtonText("Manage").onClick(() => {
+					new FolderValueManagerModal(this.plugin, () => {
+						this.updatePreview()
 					}).open()
 				})
 			)
@@ -416,7 +415,7 @@ class SampleSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Delete attachments if cancelled")
 			.setDesc(
-				"Delete attachments if the rename box is cancelled (e.g., with Esc key or Cancel button). To keep the original name with this setting on, use the Skip button."
+				"Delete attachments if the rename box is cancelled (e.g., with the escape key or cancel button). To keep the original name with this setting on, use the skip button."
 			)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.deleteOnCancel).onChange(async (value) => {
@@ -458,7 +457,7 @@ class SampleSettingTab extends PluginSettingTab {
 				toggle.setValue(this.plugin.settings.alwaysNumber).onChange(async (value) => {
 					this.plugin.settings.alwaysNumber = value
 					await this.plugin.saveSettings()
-					await this.updatePreview()
+					this.updatePreview()
 				})
 			)
 
@@ -476,7 +475,7 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.numberPadding = value
 						await this.plugin.saveSettings()
-						await this.updatePreview()
+						this.updatePreview()
 					})
 			)
 
@@ -492,7 +491,7 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.separator = value
 						await this.plugin.saveSettings()
-						await this.updatePreview()
+						this.updatePreview()
 					})
 			)
 
@@ -503,15 +502,15 @@ class SampleSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Space replacement")
-			.setDesc("Use NONE to replace spaces with an empty string. Leave empty to disable.")
+			.setDesc('Use "NONE" to replace spaces with an empty string. Leave empty to disable.')
 			.addText((text) =>
 				text
-					.setPlaceholder("disabled")
+					.setPlaceholder("Disabled")
 					.setValue(this.plugin.settings.spaceReplacement)
 					.onChange(async (value) => {
 						this.plugin.settings.spaceReplacement = value
 						await this.plugin.saveSettings()
-						await this.updatePreview()
+						this.updatePreview()
 					})
 			)
 
@@ -529,7 +528,7 @@ class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.transformName = value
 						await this.plugin.saveSettings()
-						await this.updatePreview()
+						this.updatePreview()
 					})
 			)
 
@@ -541,7 +540,7 @@ class SampleSettingTab extends PluginSettingTab {
 			.setClass("attachment-renamer-setting-wrap")
 			.addTextArea((text) => {
 				const inputEl = text
-					.setPlaceholder("\\.(docx|pptx|xlsx)$\n^My/Protected/Folder")
+					.setPlaceholder("\\.(docx|pptx|xlsx)$\n^my/protected/folder")
 					.setValue(this.plugin.settings.ignorePattern)
 					.onChange(async (value) => {
 						this.plugin.settings.ignorePattern = value
@@ -555,7 +554,7 @@ class SampleSettingTab extends PluginSettingTab {
 	private async updateNameTemplate(value: string) {
 		this.plugin.settings.nameTemplate = value
 		await this.plugin.saveSettings()
-		await this.updatePreview()
+		this.updatePreview()
 	}
 
 	private buildPreviewUI(el: HTMLElement) {
@@ -566,7 +565,7 @@ class SampleSettingTab extends PluginSettingTab {
 		this.updatePreview()
 	}
 
-	async updatePreview() {
+	updatePreview() {
 		clearTimeout(this.previewTid)
 		if (!isValidInput(this.plugin.settings.nameTemplate)) {
 			this.loadingSpinner?.hide()
@@ -575,14 +574,17 @@ class SampleSettingTab extends PluginSettingTab {
 		}
 
 		this.loadingSpinner?.show()
-		this.previewTid = setTimeout(async () => {
+		this.previewTid = setTimeout(() => {
 			const f = this.app.workspace.getActiveFile()
 			if (f) {
 				const t = this.plugin.templater.render("attachments/Pasted image 20251205121921.png")
 				const p = NaivePath.parse(t, "png")
-				await p.updateCounter(this.app, this.plugin.settings)
-				this.previewText?.setText(`Preview: ${p.renderPath(this.plugin.settings)}`)
-				this.loadingSpinner?.hide()
+				p.updateCounter(this.app, this.plugin.settings)
+					.then(() => {
+						this.previewText?.setText(`Preview: ${p.renderPath(this.plugin.settings)}`)
+						this.loadingSpinner?.hide()
+					})
+					.catch((e) => console.error(e))
 			} else {
 				this.loadingSpinner?.hide()
 				this.previewText?.setText("Preview not available (no active file)")

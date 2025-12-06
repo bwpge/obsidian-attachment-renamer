@@ -36,16 +36,16 @@ export class FolderValueEditorModal extends Modal {
 
 		const textComp = new TextComponent(contentEl).setValue(this.value).onChange((value) => (this.value = value))
 		textComp.inputEl.addClass("attachment-renamer-modal-input")
-		textComp.inputEl.addEventListener("compositionstart", async () => {
+		textComp.inputEl.addEventListener("compositionstart", () => {
 			this.composing = true
 		})
-		textComp.inputEl.addEventListener("compositionend", async () => {
+		textComp.inputEl.addEventListener("compositionend", () => {
 			this.composing = false
 		})
-		textComp.inputEl.addEventListener("keydown", async (e) => {
+		textComp.inputEl.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" && !this.composing) {
 				e.preventDefault()
-				await this.accept()
+				this.accept().catch((e) => console.error(e))
 			}
 		})
 		textComp.inputEl.select()

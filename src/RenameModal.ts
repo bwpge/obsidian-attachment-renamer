@@ -69,10 +69,16 @@ export class RenameModal extends Modal {
 		await this.resetUI()
 	}
 
-	async onClose() {
+	onClose() {
 		const { contentEl } = this
 		contentEl.empty()
 
+		this.onCloseAsync().catch((e) => console.error(e))
+		this.acceptRename = false
+		this.skipRename = false
+	}
+
+	private async onCloseAsync() {
 		if (this.skipRename) {
 			if (this.onSkip) {
 				await this.onSkip()
@@ -90,12 +96,9 @@ export class RenameModal extends Modal {
 				await this.onCancel()
 			}
 		}
-
-		this.acceptRename = false
-		this.skipRename = false
 	}
 
-	private async accept() {
+	private accept() {
 		this.acceptRename = true
 		this.close()
 	}
@@ -130,16 +133,16 @@ export class RenameModal extends Modal {
 			await this.debounceUpdateUI(250)
 		})
 		this.textComp.inputEl.addClass("attachment-renamer-modal-input")
-		this.textComp.inputEl.addEventListener("compositionstart", async () => {
+		this.textComp.inputEl.addEventListener("compositionstart", () => {
 			this.composing = true
 		})
-		this.textComp.inputEl.addEventListener("compositionend", async () => {
+		this.textComp.inputEl.addEventListener("compositionend", () => {
 			this.composing = false
 		})
-		this.textComp.inputEl.addEventListener("keydown", async (e) => {
+		this.textComp.inputEl.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" && !this.composing) {
 				e.preventDefault()
-				await this.accept()
+				this.accept()
 			}
 		})
 		this.textComp.inputEl.select()
@@ -149,7 +152,7 @@ export class RenameModal extends Modal {
 		const checkBox = checkBoxLabel.createEl("input", { type: "checkbox" })
 		checkBox.addEventListener("change", () => {
 			if (this.onDontAskChanged) {
-				this.onDontAskChanged(checkBox.checked)
+				this.onDontAskChanged(checkBox.checked).catch((e) => console.error(e))
 			}
 		})
 		checkBoxLabel.appendText("Don't ask again")
@@ -160,8 +163,8 @@ export class RenameModal extends Modal {
 		this.renameButton = new ButtonComponent(buttonContainer)
 			.setButtonText("Rename")
 			.setCta()
-			.onClick(async () => await this.accept())
-		new ButtonComponent(buttonContainer).setButtonText("Skip").onClick(async () => {
+			.onClick(() => this.accept())
+		new ButtonComponent(buttonContainer).setButtonText("Skip").onClick(() => {
 			this.skipRename = true
 			this.close()
 		})
@@ -173,9 +176,9 @@ export class RenameModal extends Modal {
 		clearTimeout(this.tid)
 		if (this.isValid && ms) {
 			this.loadingSpinner?.show()
-			this.tid = setTimeout(async () => {
-				await this.updateDstEl()
+			this.tid = setTimeout(() => {
 				this.loadingSpinner?.hide()
+				this.updateDstEl().catch((e) => console.error(e))
 			}, ms)
 		} else {
 			await this.updateDstEl()

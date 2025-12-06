@@ -199,13 +199,12 @@ export class TemplateEngine {
 			return rendered.replace(SPACES_PATTERN, replace)
 		}
 
-		// eslint-disable-next-line prefer-const
-		let [before, after] = splitLast(rendered, "/")
+		const [before, after] = splitLast(rendered, "/")
 		if (!after) {
 			return rendered
 		}
-		after = after.replace(SPACES_PATTERN, replace)
-		return `${before}/${after}`
+
+		return `${before}/${after.replace(SPACES_PATTERN, replace)}`
 	}
 
 	private applyTransform(value: string): string {

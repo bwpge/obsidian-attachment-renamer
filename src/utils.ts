@@ -39,7 +39,7 @@ function uuidFallback(): string {
 export function generateUUID(): string {
 	try {
 		return crypto.randomUUID()
-	} catch (err) {
+	} catch {
 		console.warn("could not use crypto module to generate UUID, using fallback")
 		return uuidFallback()
 	}

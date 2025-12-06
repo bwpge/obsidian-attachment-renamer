@@ -46,7 +46,7 @@ export class ConfirmModal extends Modal {
 		const checkBox = checkBoxLabel.createEl("input", { type: "checkbox" })
 		checkBox.addEventListener("change", () => {
 			if (this.onDontAskChanged) {
-				this.onDontAskChanged(checkBox.checked)
+				this.onDontAskChanged(checkBox.checked).catch((e) => console.error(e))
 			}
 		})
 		checkBoxLabel.appendText("Don't ask again")
@@ -65,7 +65,7 @@ export class ConfirmModal extends Modal {
 
 	async confirm() {
 		if (this.onConfirm) {
-			this.onConfirm()
+			await this.onConfirm()
 		}
 		this.close()
 	}

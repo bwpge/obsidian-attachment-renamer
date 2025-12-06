@@ -18,7 +18,7 @@ export class HelpModal extends Modal {
 		this.containerEl.addClass("attachment-renamer-help")
 
 		const d = contentEl.createDiv({ cls: "markdown-rendered" })
-		MarkdownRenderer.render(this.app, this.markdown, d, "", this.component)
+		MarkdownRenderer.render(this.app, this.markdown, d, "", this.component).catch((e) => console.error(e))
 
 		const buttonContainer = this.modalEl.createDiv({ cls: "modal-button-container" })
 		new ButtonComponent(buttonContainer).setButtonText("Close").onClick(() => this.close())
