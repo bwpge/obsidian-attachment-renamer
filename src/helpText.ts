@@ -52,7 +52,7 @@ You can directly edit the path in the rename box to move attachments to differen
 - This allows using potentially empty variables for directories: \`{fileName}/{header}/{uuid}\`
 
 >[!WARNING]
->By default, missing directories are created before the attachment is moved/renamed. This is usually desired behavior, however there is no confirmation for which directories are created. Typos in an attachment path can create a mess of directories in your vault.
+>By default, missing directories are not created before the attachment is moved/renamed. This is usually desired behavior, however there is no confirmation for which directories are created. Typos in an attachment path can create a mess of directories in your vault. Enable this setting only once you are comfortable with the template syntax.
 
 ## Folder template values
 
