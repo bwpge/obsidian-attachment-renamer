@@ -42,7 +42,8 @@ const DEFAULT_SETTINGS: AttachmentRenamerSettings = {
 interface LinkStats {
 	files: TFile[]
 	ignored: number
-	links: number
+	internal: number
+	external: number
 }
 
 export default class AttachmentRenamerPlugin extends Plugin {
@@ -81,11 +82,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 					return
 				}
 
-				if (this.shouldIgnore(file.path)) {
-					return
-				}
-
-				if (file.basename.startsWith("~")) {
+				if (this.shouldIgnore(file.path) || file.basename.startsWith("~")) {
 					return
 				}
 
@@ -147,7 +144,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			dst: dst,
 			settings: this.settings,
 			onAccept: async (value) => {
-				await this.renameAttachment(src, value, true)
+				await this.renameAttachment(src, value)
 			},
 			onCancel: async () => {
 				if (this.settings.deleteOnCancel) {
@@ -173,10 +170,11 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
-		const { files, links, ignored } = this.getLinkStats(activeFile, embeds)
-		const filesAffected = `${files.length} ${files.length === 1 ? "file" : "files"}`
-		const linksAffected = `${links} ${links === 1 ? "link" : "links"}`
-		const ignoredText = ` (${ignored} ${ignored === 1 ? "attachment" : "attachments"} will be ignored by your plugin settings)`
+		const { files, ignored, external, internal } = this.getLinkStats(activeFile, embeds)
+		const filesAffected = `${files.length} ${files.length === 1 ? "attachment" : "attachments"}`
+		const internalAffected = `${internal} ${internal === 1 ? "link" : "links"}`
+		const externalText = `, and ${external} ${external === 1 ? "link" : "links"} in other notes`
+		const ignoredText = ` The ignore pattern setting will skip ${ignored} ${ignored === 1 ? "attachment" : "attachments"}.`
 
 		const doRenameAll = async () => {
 			// move each file to a temp file first to avoid leap frogging attachment numbers
@@ -190,7 +188,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				const dst = this.templater.render(src)
 				const p = NaivePath.parse(dst, f.extension)
 				await p.updateCounter(this.app, this.settings)
-				await this.renameAttachment(src, p.renderPath(this.settings), true)
+				await this.renameAttachment(src, p.renderPath(this.settings))
 			}
 		}
 
@@ -199,15 +197,19 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
+		const body = [
+			`Are you sure you want to rename all attachments in "${activeFile.basename}"?`,
+			`This will rename ${filesAffected} with ${internalAffected} in the current note${external > 0 ? externalText : ""}.${ignored > 0 ? ignoredText : ""}`,
+		]
+		const warning = [
+			"Be sure that your plugin settings produce the desired attachment names. There is no confirmation for individual rename operations.",
+			"There is no way to undo this operation. Always backup your vault before renaming all attachments.",
+		]
+
 		new ConfirmModal(this.app, {
 			title: "Rename all attachments",
-			body: [
-				`Are you sure you want to rename all attachments in "${activeFile.basename}"?`,
-				`This will rename ${filesAffected} with ${linksAffected} in the current note${ignored > 0 ? ignoredText : ""}.`,
-				"Be sure that your plugin settings produce the desired attachment names. There is no confirmation for individual rename operations.",
-			],
-			warning:
-				"There is no way to undo this operation. Always backup your vault before renaming all attachments.",
+			body,
+			warning,
 			confirmButtonText: "Rename",
 			onConfirm: doRenameAll,
 			onDontAskChanged: async (checked) => {
@@ -282,7 +284,7 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			return
 		}
 
-		await this.app.vault.delete(f)
+		await this.app.fileManager.trashFile(f)
 
 		if (noUpdateEditor) {
 			return
@@ -319,8 +321,9 @@ export default class AttachmentRenamerPlugin extends Plugin {
 	private getLinkStats(activeFile: TFile, embeds: EmbedCache[]): LinkStats {
 		const seen = new Set()
 		const files: TFile[] = []
-		let links = 0
 		let ignored = 0
+		let internal = 0
+		let external = 0
 		for (const embed of embeds) {
 			const file = this.app.metadataCache.getFirstLinkpathDest(embed.link, activeFile.path)
 			if (!file) {
@@ -331,15 +334,30 @@ export default class AttachmentRenamerPlugin extends Plugin {
 				continue
 			}
 
-			links += 1
+			const links = this.app.metadataCache.resolvedLinks
+			if (!links) {
+				continue
+			}
+
 			if (seen.has(file.path)) {
 				continue
 			}
 			seen.add(file.path)
 			files.push(file)
+
+			// PERF: this can get really expensive in a big vault
+			const f = file.path
+			for (const link in links) {
+				const count = links[link][f] ?? 0
+				if (link === activeFile.path) {
+					internal += count
+				} else {
+					external += count
+				}
+			}
 		}
 
-		return { files, links, ignored }
+		return { files, internal, external, ignored }
 	}
 }
 
