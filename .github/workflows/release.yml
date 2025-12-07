@@ -1,9 +1,12 @@
-name: Release
+name: Create draft release
 
 on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
 
 jobs:
   build-and-release:
@@ -25,16 +28,15 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Authenticate gh cli
-        run: gh auth login
-        env: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create release
         run: |
           gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
-            --notes ""
+            --notes "" \
+            --draft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build files
         run: |
@@ -42,3 +44,5 @@ jobs:
             echo "Adding to release: '$file'"
             gh release upload "${{ github.ref_name }}" "$file" --clobber
           done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 {
 	"id": "attachment-renamer",
 	"name": "Attachment Renamer",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "1.6.6",
 	"description": "Rename pasted, drag-and-dropped, and existing attachments in your vault with template syntax.",
 	"author": "bwpge",
