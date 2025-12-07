@@ -156,6 +156,7 @@ export class RenameModal extends Modal {
 			}
 		})
 		checkBoxLabel.appendText("Don't ask again")
+		checkBox.tabIndex = -1
 
 		this.loadingSpinner = buttonContainer.createDiv({ cls: "attachment-renamer-spinner" })
 		this.loadingSpinner.hide()

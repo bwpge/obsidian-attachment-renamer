@@ -3,7 +3,7 @@ import { App, ButtonComponent, Modal } from "obsidian"
 interface ConfirmModalArgs {
 	title: string
 	body: string | string[]
-	warning?: string
+	warning?: string | string[]
 	confirmButtonText: string
 	onConfirm: () => Promise<void>
 	onDontAskChanged?: (checked: boolean) => Promise<void>
@@ -11,7 +11,7 @@ interface ConfirmModalArgs {
 
 export class ConfirmModal extends Modal {
 	body: string[]
-	warning?: string
+	warning: string[]
 	confirmButtonText: string
 	onConfirm?: () => Promise<void>
 	onDontAskChanged?: (checked: boolean) => Promise<void>
@@ -23,7 +23,11 @@ export class ConfirmModal extends Modal {
 		} else {
 			this.body = args.body
 		}
-		this.warning = args.warning
+		if (typeof args.warning === "string") {
+			this.warning = [args.warning]
+		} else {
+			this.warning = args.warning ?? []
+		}
 		this.onConfirm = args.onConfirm
 		this.confirmButtonText = args.confirmButtonText
 		this.onDontAskChanged = args.onDontAskChanged
@@ -36,9 +40,8 @@ export class ConfirmModal extends Modal {
 		for (const text of this.body) {
 			contentEl.createEl("p", { text })
 		}
-
-		if (this.warning) {
-			contentEl.createEl("p", { text: this.warning, cls: "mod-warning" })
+		for (const text of this.warning) {
+			contentEl.createEl("p", { text, cls: "mod-warning" })
 		}
 
 		const buttonContainer = this.modalEl.createDiv({ cls: "modal-button-container" })
@@ -50,6 +53,7 @@ export class ConfirmModal extends Modal {
 			}
 		})
 		checkBoxLabel.appendText("Don't ask again")
+		checkBox.tabIndex = -1
 
 		new ButtonComponent(buttonContainer)
 			.setButtonText(this.confirmButtonText)
