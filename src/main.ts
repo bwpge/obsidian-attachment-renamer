@@ -1,5 +1,4 @@
 import { App, EmbedCache, Notice, Plugin, PluginSettingTab, Setting, TextComponent, TFile, TFolder } from "obsidian"
-import { FolderValueEditorModal } from "./FolderValueEditorModal"
 import { HelpModal } from "./HelpModal"
 import { NAME_TEMPLATE_HELP } from "./helpText"
 import { FolderValueManagerModal } from "./FolderValueManagerModal"
@@ -8,6 +7,7 @@ import { RenameModal } from "./RenameModal"
 import { TemplateEngine } from "./TemplateEngine"
 import { getActiveEditor, getTempFileName, isValidInput, replaceCurrLineInEditor } from "./utils"
 import { ConfirmModal } from "./ConfirmModal"
+import { addEditFolderValueMenuItem, addRenameInNoteMenuItem } from "./menu"
 
 interface AttachmentRenamerSettings {
 	nameTemplate: string
@@ -59,7 +59,12 @@ export default class AttachmentRenamerPlugin extends Plugin {
 			id: "rename-all",
 			name: "Rename all attachments in active note",
 			callback: async () => {
-				await this.renameAllActive()
+				const activeFile = this.app.workspace.getActiveFile()
+				if (!activeFile) {
+					new Notice("No active file found")
+					return
+				}
+				await this.renameAll(activeFile)
 			},
 		})
 
@@ -91,34 +96,17 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		)
 
 		this.app.workspace.on("file-menu", (menu, f) => {
-			if (!(f instanceof TFolder) || f.path === "/") {
+			if (f.path === "/") {
 				return
 			}
 
-			const key = f.path
-			const startValue = this.settings.folderVals[key]
-			const onAccept = async (value: string) => {
-				this.settings.folderVals[key] = value
-				await this.saveSettings()
-				new Notice(`Updated value for "${f.name}"`)
-			}
-
-			if (key in this.settings.folderVals) {
-				menu.addItem((item) => {
-					item.setTitle("Edit folder template value")
-						.setIcon("notepad-text-dashed")
-						.onClick(() => {
-							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
-						})
-				})
-			} else {
-				menu.addItem((item) => {
-					item.setTitle("Create folder template value")
-						.setIcon("notepad-text-dashed")
-						.onClick(() => {
-							new FolderValueEditorModal(this.app, { key, startValue, onAccept }).open()
-						})
-				})
+			if (f instanceof TFile) {
+				if (f.extension.toLowerCase() !== "md") {
+					return
+				}
+				addRenameInNoteMenuItem(this, menu, f)
+			} else if (f instanceof TFolder) {
+				addEditFolderValueMenuItem(this, menu, f)
 			}
 		})
 	}
@@ -158,19 +146,14 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		}).open()
 	}
 
-	async renameAllActive() {
-		const activeFile = this.app.workspace.getActiveFile()
-		if (!activeFile) {
-			new Notice("No active file found")
-			return
-		}
-		const embeds = this.app.metadataCache.getFileCache(activeFile)?.embeds
+	async renameAll(src: TFile) {
+		const embeds = this.app.metadataCache.getFileCache(src)?.embeds
 		if (!embeds) {
-			new Notice("No attachment links found")
+			new Notice(`No attachment links found in "${src.name}"`)
 			return
 		}
 
-		const { files, ignored, external, internal } = this.getLinkStats(activeFile, embeds)
+		const { files, ignored, external, internal } = this.getLinkStats(src, embeds)
 		const filesAffected = `${files.length} ${files.length === 1 ? "attachment" : "attachments"}`
 		const internalAffected = `${internal} ${internal === 1 ? "link" : "links"}`
 		const externalText = `, and ${external} ${external === 1 ? "link" : "links"} in other notes`
@@ -198,8 +181,8 @@ export default class AttachmentRenamerPlugin extends Plugin {
 		}
 
 		const body = [
-			`Are you sure you want to rename all attachments in "${activeFile.basename}"?`,
-			`This will rename ${filesAffected} with ${internalAffected} in the current note${external > 0 ? externalText : ""}.${ignored > 0 ? ignoredText : ""}`,
+			`Are you sure you want to rename all attachments in "${src.basename}"?`,
+			`This will rename ${filesAffected} with ${internalAffected} in the target note${external > 0 ? externalText : ""}.${ignored > 0 ? ignoredText : ""}`,
 		]
 		const warning = [
 			"Be sure that your plugin settings produce the desired attachment names. There is no confirmation for individual rename operations.",
