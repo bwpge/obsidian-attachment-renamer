@@ -28,6 +28,33 @@ My goal with this plugin is to bring forward the core features of Paste image re
 	- Use multiple regular expressions for ignoring attachments
 	- Match ignore patterns to full path, not just extension
 
+## Installation
+
+Until this plugin is approved by Obsidian, you will have to manually install it.
+
+- Create the plugin folder in your vault: `your-vault/.obsidian/plugins/obsidian-attachment-renamer`
+- Download `main.js`, `styles.css`, and `manifest.json` from the latest release into the plugin folder
+- Restart Obsidian and enable the plugin
+
+Scripts are provided for convenience, use at your own risk. They have been minimally tested.
+
+### Windows
+
+Download `scripts/install.ps1` and run with:
+
+```powershell
+./install.ps1 -VaultPath path\to\your\vault
+
+```
+
+### Linux/macOS
+
+Download `scripts/install.sh` and run with:
+
+```sh
+sh ./install.sh path/to/your/vault
+```
+
 ## Usage
 
 ### Rename attachments
