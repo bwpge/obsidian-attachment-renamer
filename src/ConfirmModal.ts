@@ -58,7 +58,7 @@ export class ConfirmModal extends Modal {
 		new ButtonComponent(buttonContainer)
 			.setButtonText(this.confirmButtonText)
 			.setWarning()
-			.onClick(async () => this.confirm())
+			.onClick(() => this.confirm())
 		new ButtonComponent(buttonContainer).setButtonText("Cancel").onClick(() => this.close())
 	}
 
@@ -67,10 +67,10 @@ export class ConfirmModal extends Modal {
 		contentEl.empty()
 	}
 
-	async confirm() {
-		if (this.onConfirm) {
-			await this.onConfirm()
-		}
+	confirm() {
 		this.close()
+		if (this.onConfirm) {
+			this.onConfirm().catch((e) => console.error(e))
+		}
 	}
 }
