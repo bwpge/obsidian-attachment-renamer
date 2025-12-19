@@ -70,8 +70,12 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.vault.on("create", async (file) => {
-				// always ignore directories and markdown files
-				if (!(file instanceof TFile) || file.extension.toLowerCase() == "md") {
+				// always ignore directories, markdown, and base files
+				if (
+					!(file instanceof TFile) ||
+					file.extension.toLowerCase() == "md" ||
+					file.extension.toLowerCase() == "base"
+				) {
 					return
 				}
 
@@ -503,7 +507,7 @@ class AttachmentRenamerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Space replacement")
-			.setDesc('Use "NONE" to replace spaces with an empty string. Leave empty to disable.')
+			.setDesc('Use "none" to replace spaces with an empty string. Leave empty to disable.')
 			.addText((text) =>
 				text
 					.setPlaceholder("Disabled")

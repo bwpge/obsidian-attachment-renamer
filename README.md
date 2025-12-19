@@ -114,7 +114,7 @@ Once you are familiar with the plugin, it is strongly recommended to enable **De
 | Always number attachments | Rename all attachments with a counter e.g., `foo-1`. Otherwise, only use a counter when the attachment name already exists. |
 | Number padding | Minimum number of digits an attachment number must have. For example, a value of 3 will result in 001, 042, 1000, etc. |
 | Separator | Value used to separate different template values such as name and attachment counters, e.g., foo-02. |
-| Space replacement | Use `NONE` to replace spaces with an empty string. Leave empty to disable. |
+| Space replacement | Use `none` to replace spaces with an empty string. Leave empty to disable. |
 | Transform name | Change the attachment name to uppercase or lowercase. |
 | Ignore patterns | Skip processing attachments whose path matches any provided regular expression. The full path is tested, including attachment extension. Each line is treated as a separate regular expression. Empty lines are ignored. |
 

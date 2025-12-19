@@ -194,7 +194,7 @@ export class TemplateEngine {
 			return rendered
 		}
 
-		const replace = this.settings.spaceReplacement === "NONE" ? "" : this.settings.spaceReplacement
+		const replace = this.settings.spaceReplacement === "none" ? "" : this.settings.spaceReplacement
 		if (!rendered.contains("/")) {
 			return rendered.replace(SPACES_PATTERN, replace)
 		}
