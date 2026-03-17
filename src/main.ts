@@ -70,11 +70,12 @@ export default class AttachmentRenamerPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.vault.on("create", async (file) => {
-				// always ignore directories, markdown, and base files
+				// always ignore directories and native files
 				if (
 					!(file instanceof TFile) ||
 					file.extension.toLowerCase() == "md" ||
-					file.extension.toLowerCase() == "base"
+					file.extension.toLowerCase() == "base" ||
+					file.extension.toLowerCase() == "canvas"
 				) {
 					return
 				}
